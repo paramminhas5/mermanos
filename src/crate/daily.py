@@ -3,7 +3,7 @@ from __future__ import annotations
 import html, json, statistics, time, urllib.parse
 from collections import Counter
 from pathlib import Path
-from . import ableton
+from . import ableton, lanes as _lanes
 
 DEFAULT_GOALS = [
     {"horizon": "30 days", "goal": "Finish 4 tracks", "measure": "tracks finished", "target": 4, "done": 0, "status": "in progress"},
@@ -76,7 +76,7 @@ def build(cfg, con) -> dict:
                               days_since_last_session=sets[0]["days_ago"] if sets else None),
                 today=dict(listen=_mix(fnd), talk=prompts(sets, fnd), check_out=[dict(label=l, finds=n) for l, n in Counter(f["label"] for f in fnd if f["label"]).most_common(4)],
                            working_on=sets[:3]),
-                studio=sets, discovery=fnd, library=library(con, cfg), goals=g)
+                studio=sets, discovery=fnd, library=library(con, cfg), goals=g, lanes=_lanes.collect(cfg))
 
 def public_copy(state: dict) -> dict:
     """What is safe to host online: no file paths, no local folder names."""
@@ -93,12 +93,15 @@ def publish(cfg, state: dict, repo_dir: Path, push: bool = True) -> str:
     out = repo_dir / "mermanos"; out.mkdir(exist_ok=True)
     (out / "index.html").write_text(render(pub, actions=False))
     (out / "state.json").write_text(json.dumps(pub, indent=1))
+    lanes_dir = repo_dir / "lanes"; lanes_dir.mkdir(exist_ok=True)
+    for name, data in (pub.get("lanes") or {}).items():
+        if data.get("status") == "ok": (lanes_dir / f"{name}.json").write_text(json.dumps(data, indent=1))
     import os
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "true"}
     def run(*a):
         try: return subprocess.run(["git", "-C", str(repo_dir), *a], capture_output=True, text=True, env=env, timeout=60)
         except subprocess.TimeoutExpired: return subprocess.CompletedProcess(a, 1, "", "git timed out (login needed?)")
-    run("add", "mermanos")
+    run("add", "mermanos", "lanes")
     if not run("status", "--porcelain").stdout.strip(): return "online copy already up to date"
     run("commit", "-m", f"merman: daily {state['date']}")
     if not push: return "committed (not pushed)"
