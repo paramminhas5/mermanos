@@ -40,10 +40,10 @@ def test_results_persist_and_second_run_is_fully_cached(cfg, con):
     http, out = run(cfg, con, 0.8)
     calls = http.calls
     assert con.execute("SELECT COUNT(*) FROM candidates").fetchone()[0] == len(out)
-    con.execute("UPDATE candidates SET status='wanted' WHERE artist='Obscure Guy'"); con.commit()
+    con.execute("UPDATE candidates SET status='skipped' WHERE artist='Obscure Guy'"); con.commit()
     discover.discover(con, cfg, MusicBrainz(http), ListenBrainz(http), log=lambda *_: None)
     assert http.calls == calls
-    assert con.execute("SELECT status FROM candidates WHERE artist='Obscure Guy'").fetchone()[0] == "wanted"   # rerun keeps your decisions
+    assert con.execute("SELECT status FROM candidates WHERE artist='Obscure Guy'").fetchone()[0] == "skipped"   # rerun keeps your decisions
 
 def test_owning_a_candidate_marks_it_owned(cfg, con):
     from crate import acquire
@@ -88,3 +88,17 @@ def test_weighted_seeds_file(cfg, con):
     prof = taste.build(con, cfg)
     w = dict(prof["artists"])
     assert w["Alpha"] == 9.0 and w["Beta"] >= 3.0 and prof["seeds"] == ["Alpha", "Beta"]
+
+
+def test_norm_matches_musicbrainz_spellings():
+    from crate.util import norm
+    assert norm("Gil Scott-Heron") == norm("Gil Scott‐Heron")
+    assert norm("Barry Can't Swim") == norm("Barry Can’t Swim")
+    assert norm("trommel") == norm("Trømmel")
+
+
+def test_wanted_artist_becomes_a_seed_and_skipped_label_is_muted(cfg, con):
+    run(cfg, con, 0.8)
+    con.execute("UPDATE candidates SET status='wanted' WHERE artist='Obscure Guy'"); con.commit()
+    prof = taste.build(con, cfg)
+    assert dict(prof["artists"]).get("Obscure Guy", 0) >= 6

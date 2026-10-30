@@ -6,10 +6,15 @@ AUDIO_EXT = {".flac", ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", 
 SIDECAR_EXT = {".jpg", ".jpeg", ".png", ".cue", ".log", ".m3u", ".m3u8", ".pdf", ".nfo"}
 _BAD = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
+_FOLD = str.maketrans({"\u00f8": "o", "\u00d8": "O", "\u00e6": "ae", "\u00c6": "AE", "\u0153": "oe", "\u0152": "OE", "\u00df": "ss",
+                       "\u0142": "l", "\u0141": "L", "\u0111": "d", "\u0110": "D", "\u00f0": "d", "\u00fe": "th"})   # letters NFKD does not split
+
 def norm(s: str | None) -> str:
     """Loose key for comparing names across sources: lowercase, no accents, no punctuation, no leading 'the'."""
     if not s: return ""
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[\u2018\u2019\u02bc'`]", "", s)               # apostrophes vanish: Can't / Can\u2019t compare equal
+    s = re.sub(r"[\u2010-\u2015\u2212]", " ", s)                # unicode hyphens and dashes act like spaces (MusicBrainz uses U+2010)
+    s = unicodedata.normalize("NFKD", s.translate(_FOLD)).encode("ascii", "ignore").decode().lower()
     s = re.sub(r"^the\s+", "", s.strip())
     s = re.sub(r"[^a-z0-9]+", " ", s)
     return s.strip()

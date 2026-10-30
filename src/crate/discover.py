@@ -41,10 +41,15 @@ def discover(con, cfg, mb, lb, lastfm=None, discogs=None, prof=None, log=print) 
     for g, n in prof["genres"]: genre_w[g] += n
     gmax = max(genre_w.values()) if genre_w else 1.0
 
+    # feedback loop: a label you skipped 3 or more times and never wanted stops being a pivot
+    fb = defaultdict(lambda: [0, 0])
+    for r in con.execute("SELECT label,status FROM candidates WHERE status IN ('wanted','skipped') AND label IS NOT NULL"):
+        fb[r["label"].lower()][0 if r["status"] == "wanted" else 1] += 1
+    muted = {l for l, (w, k) in fb.items() if k >= 3 and w == 0}
     log(f"  {len(seed_meta)} seeds resolved, {len(label_hits)} labels in play")
     pivots = []
     for lid, h in sorted(label_hits.items(), key=lambda x: -x[1]["w"])[:cfg.pivots * 2]:
-        if NOT_REAL_LABELS.search(h["name"]) or h["name"].lower() in {n.lower() for n in cfg.ignore_labels}: continue
+        if NOT_REAL_LABELS.search(h["name"]) or h["name"].lower() in {n.lower() for n in cfg.ignore_labels} or h["name"].lower() in muted: continue
         size = mb.label_size(lid)
         if 3 <= size <= cfg.max_label_size: pivots.append((lid, h, size))
     pivots = sorted(pivots, key=lambda p: -p[1]["w"] / math.log2(2 + p[2]))[:cfg.pivots]

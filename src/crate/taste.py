@@ -32,6 +32,11 @@ def build(con, cfg) -> dict:
         try: weights[k] = max(weights.get(k, 0), float(w))
         except ValueError: weights[k] = max(weights.get(k, 0), floor, 3.0)
         seeds[seeds.index(line)] = name
+    # feedback loop, no AI: artists you pressed Want on become seeds, so the next dig walks out from what you liked
+    try:
+        for r in con.execute("SELECT artist FROM candidates WHERE status='wanted'"):
+            k = norm(r["artist"]); names.setdefault(k, r["artist"]); weights[k] = max(weights.get(k, 0), 6.0)
+    except Exception: pass
     ranked = sorted(((names[k], round(w, 2)) for k, w in weights.items()), key=lambda x: -x[1])
     prof = dict(artists=ranked, labels=labels.most_common(25), genres=genres.most_common(25), decades=sorted(decades.items()),
                 tracks=len(rows), seeds=seeds)
