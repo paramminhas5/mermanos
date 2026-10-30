@@ -1,13 +1,10 @@
 #!/bin/bash
-# Merman OS launcher. Double-click: sets itself up the first time, then opens the dashboard.
+# Merman OS launcher. Double-click: sets itself up the first time, updates itself, opens its own window.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 APP="$HOME/.mermanos"; mkdir -p "$APP"; exec >>"$APP/app.log" 2>&1
 URL="http://127.0.0.1:8765/"
 say() { osascript -e "display notification \"$1\" with title \"Merman OS\"" >/dev/null 2>&1; }
 box() { osascript -e "display dialog \"$1\" buttons {\"OK\"} default button 1 with title \"Merman OS\"" >/dev/null 2>&1; }
-
-# already running: just open it
-if curl -fs -m 2 "$URL" >/dev/null 2>&1; then open "$URL"; exit 0; fi
 
 # python 3.10+
 PY=""
@@ -20,19 +17,24 @@ if [ -z "$PY" ]; then
   open "https://www.python.org/downloads/macos/"; exit 1
 fi
 
-# get the latest code from GitHub (works without git; skipped if offline)
+# latest code from GitHub (works without git; skipped if offline)
 SRC="$APP/src"
 if curl -fsL -m 60 "https://github.com/paramminhas5/mermanos/archive/refs/heads/main.tar.gz" -o "$APP/src.tgz"; then
   rm -rf "$APP/new" && mkdir -p "$APP/new" && tar -xzf "$APP/src.tgz" -C "$APP/new" --strip-components=1 && rm -rf "$SRC" && mv "$APP/new" "$SRC"
 fi
 [ -d "$SRC" ] || { box "Could not download Merman OS. Check your internet and open it again."; exit 1; }
 
+# stop any older copy that is still running, so you always get the newest version
+pkill -f "crate.cli serve" 2>/dev/null; pkill -f "bin/crate serve" 2>/dev/null
+lsof -ti tcp:8765 2>/dev/null | xargs kill 2>/dev/null
+sleep 1
+
 FIRST=0
 if [ ! -x "$APP/venv/bin/crate" ]; then
   FIRST=1; say "First run: setting up. This takes a couple of minutes."
   "$PY" -m venv "$APP/venv" || { box "Could not create the Python environment. See ~/.mermanos/app.log"; exit 1; }
 fi
-"$APP/venv/bin/pip" install -q -e "$SRC" || { box "Install failed. See ~/.mermanos/app.log"; exit 1; }
+"$APP/venv/bin/pip" install -q -e "$SRC[app]" || "$APP/venv/bin/pip" install -q -e "$SRC" || { box "Install failed. See ~/.mermanos/app.log"; exit 1; }
 export PATH="$APP/venv/bin:$PATH"
 
 HOME_DIR="${CRATE_HOME:-$HOME/.crate}"
@@ -46,7 +48,7 @@ if [ ! -f "$HOME_DIR/config.toml" ]; then
 fi
 
 # online copy (paramminhas.com/mermanos): needs git and push access to your ParamOS repo
-if [ ! -d "$HOME/ParamOS/.git" ]; then git clone -q https://github.com/paramminhas5/ParamOS "$HOME/ParamOS" 2>/dev/null || echo "ParamOS clone skipped"; fi
+if [ ! -d "$HOME/ParamOS/.git" ]; then GIT_TERMINAL_PROMPT=0 git clone -q https://github.com/paramminhas5/ParamOS "$HOME/ParamOS" 2>/dev/null || echo "ParamOS clone skipped"; fi
 if [ -d "$HOME/ParamOS/.git" ] && ! grep -q '^publish_dir' "$HOME_DIR/config.toml"; then
   echo 'publish_dir = "~/ParamOS"' | cat - "$HOME_DIR/config.toml" > "$HOME_DIR/config.tmp" && mv "$HOME_DIR/config.tmp" "$HOME_DIR/config.toml"
 fi
@@ -54,11 +56,9 @@ fi
 if [ "$FIRST" = 1 ]; then
   crate scan || true
   crate schedule --at 08:00 --install && launchctl load -w "$HOME/Library/LaunchAgents/com.merman.crate.plist" 2>/dev/null
-  ( crate daily --discover >>"$HOME_DIR/daily.log" 2>&1 ; say "Merman OS has your first list of finds." ) &
+  nohup sh -c "crate daily --discover >>'$HOME_DIR/daily.log' 2>&1" >/dev/null 2>&1 &
 else
-  ( crate daily --skip-discover --no-publish >>"$HOME_DIR/daily.log" 2>&1 ) &
+  nohup sh -c "crate daily --skip-discover --no-publish >>'$HOME_DIR/daily.log' 2>&1" >/dev/null 2>&1 &
 fi
-sleep 2
-nohup crate serve --no-open >>"$APP/serve.log" 2>&1 &
-for i in 1 2 3 4 5 6 7 8 9 10; do curl -fs -m 2 "$URL" >/dev/null 2>&1 && break; sleep 1; done
-open "$URL"
+# its own window; closing the window quits Merman OS. Falls back to the browser if the window part is missing.
+exec crate serve --window

@@ -7,6 +7,7 @@ dependencies = ["tomli>=2.0; python_version<'3.11'", "mutagen>=1.47", "requests>
 
 [project.optional-dependencies]
 audio = ["numpy>=1.26", "scipy>=1.11", "librosa>=0.10", "soundfile>=0.12", "pyloudnorm>=0.1.1"]
+app = ["pywebview>=5.0"]
 llm = ["anthropic>=0.40"]
 dev = ["pytest"]
 

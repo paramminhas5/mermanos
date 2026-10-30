@@ -194,7 +194,18 @@ def cmd_serve(a):
             self.end_headers()
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer(("127.0.0.1", a.port), H) as srv:
-        url = f"http://127.0.0.1:{a.port}/"; print("Merman OS at", url, "(Ctrl-C to stop)")
+        url = f"http://127.0.0.1:{a.port}/"
+        if getattr(a, "window", False):
+            try:
+                import webview
+            except ImportError:
+                webview = None
+            if webview:
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                webview.create_window("Merman OS", url, width=1280, height=860)
+                webview.start()  # returns when the window is closed; the server stops with it
+                return
+        print("Merman OS at", url, "(Ctrl-C to stop)")
         if not a.no_open: webbrowser.open(url)
         try: srv.serve_forever()
         except KeyboardInterrupt: pass
@@ -233,7 +244,7 @@ def main(argv=None):
     v = add("voice", cmd_voice); v.add_argument("what", choices=["show", "import"]); v.add_argument("arg", nargs="?")
     po = add("post", cmd_post); po.add_argument("what", choices=["new", "finalize", "approve", "export", "list"]); po.add_argument("arg", nargs="?"); po.add_argument("--force", action="store_true")
     dl = add("daily", cmd_daily); dl.add_argument("--scan", action="store_true", help="rescan the library too"); dl.add_argument("--discover", action="store_true"); dl.add_argument("--skip-discover", action="store_true"); dl.add_argument("--no-publish", action="store_true"); dl.add_argument("--every", type=float, default=7, help="days between discovery refreshes")
-    sv = add("serve", cmd_serve); sv.add_argument("--port", type=int, default=8765); sv.add_argument("--no-open", action="store_true")
+    sv = add("serve", cmd_serve); sv.add_argument("--port", type=int, default=8765); sv.add_argument("--no-open", action="store_true"); sv.add_argument("--window", action="store_true", help="open in its own app window (needs pywebview)")
     sc = add("schedule", cmd_schedule); sc.add_argument("--at", default="08:00"); sc.add_argument("--install", action="store_true")
     wk = add("weekly", cmd_weekly); wk.add_argument("--apply", action="store_true")
     a = p.parse_args(argv); a.fn(a)

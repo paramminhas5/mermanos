@@ -5,8 +5,8 @@ Merman OS is the music side of Param OS. It reads your Ableton sets and your lib
 ## Use it on a Mac (no terminal)
 
 1. Download **Merman OS.app** from the zip your assistant gave you (or this repo), and drag it to Applications.
-2. Double-click it. The first time it asks for your email, sets itself up (a couple of minutes), schedules a daily 08:00 refresh and opens the dashboard in your browser.
-3. Every time after that, double-clicking just opens the dashboard at http://127.0.0.1:8765/ . The buttons on the page refresh your data or dig for new music.
+2. Double-click it. The first time it asks for your email, sets itself up (a couple of minutes), schedules a daily 08:00 refresh and opens Merman OS in its own window. Closing the window quits it.
+3. Every time after that, double-clicking updates it to the latest version and opens the window. The buttons on the page refresh your data or dig for new music.
 
 If macOS says it cannot verify the app, right-click it, choose Open, then Open again. You only do this once.
 
