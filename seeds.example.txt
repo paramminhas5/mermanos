@@ -1,0 +1,5 @@
+# One artist per line. Optional weight after a bar, 1 to 10. These seed the discovery.
+# Replace these with artists you love. Your own list stays in ~/.crate/seeds.txt.
+Floating Points | 8
+Four Tet | 8
+Jessy Lanza | 6

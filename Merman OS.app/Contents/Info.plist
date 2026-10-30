@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Merman OS</string>
+<key>CFBundleDisplayName</key><string>Merman OS</string>
+<key>CFBundleIdentifier</key><string>app.merman.os</string>
+<key>CFBundleExecutable</key><string>MermanOS</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>11.0</string>
+</dict></plist>
