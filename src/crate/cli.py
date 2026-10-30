@@ -162,12 +162,15 @@ def cmd_daily(a):
 
 def cmd_serve(a):
     """Local dashboard with working Want/Skip buttons. Rebuilds the page from disk on each load; never calls the network."""
-    import http.server, socketserver, subprocess, sys, webbrowser
+    import http.server, socketserver, subprocess, sys, threading, webbrowser
     from . import daily
     cfg, con0 = _ctx(); con0.close()
+    RUN = {"on": False, "ok": None}
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *x): pass
         def do_GET(self):
+            if self.path == "/api/status":
+                b = json.dumps(RUN).encode(); self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b); return
             c = db.connect(cfg.db_path)
             try: body = daily.render(daily.build(cfg, c)).encode()
             finally: c.close()
@@ -175,9 +178,15 @@ def cmd_serve(a):
         def do_POST(self):
             d = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or "{}")
             if self.path == "/api/run":
-                cmd = [sys.executable, "-m", "crate.cli", "daily"] + (["--discover"] if d.get("discover") else [])
-                r = subprocess.run(cmd, capture_output=True, text=True)
-                self.send_response(200 if r.returncode == 0 else 500); self.end_headers(); return
+                if not RUN["on"]:
+                    RUN.update(on=True, ok=None)
+                    cmd = [sys.executable, "-m", "crate.cli", "daily", "--no-publish"] + (["--discover"] if d.get("discover") else ["--skip-discover"])
+                    def job():
+                        try: RUN["ok"] = subprocess.run(cmd, capture_output=True, text=True, timeout=1800).returncode == 0
+                        except Exception: RUN["ok"] = False
+                        RUN["on"] = False
+                    threading.Thread(target=job, daemon=True).start()
+                self.send_response(202); self.end_headers(); return
             if d.get("status") in ("wanted", "skipped") and isinstance(d.get("id"), int):
                 c = db.connect(cfg.db_path); c.execute("UPDATE candidates SET status=? WHERE id=?", (d["status"], d["id"])); c.commit(); c.close()
                 self.send_response(200)
