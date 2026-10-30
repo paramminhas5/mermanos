@@ -18,10 +18,24 @@ DEFAULT_GOALS = [
     {"horizon": "5 years", "goal": "A label with other artists on it", "measure": "artists signed", "target": 3, "done": 0, "status": "not started"},
 ]
 
-def goals(cfg) -> list[dict]:
+def goals(cfg, sets: list[dict] | None = None) -> list[dict]:
     p = cfg.home / "goals.json"
     if not p.exists(): p.write_text(json.dumps(DEFAULT_GOALS, indent=1))
-    return json.loads(p.read_text())
+    g = json.loads(p.read_text())
+    if sets is not None:   # tracks finished counts itself: a project touched in the last 30 days that has a bounce next to it
+        done = sum(1 for x in sets if x.get("bounces", 0) > 0 and x.get("days_ago", 999) <= 30)
+        for x in g:
+            if x.get("measure") == "tracks finished":
+                x["done"] = done; x["auto"] = True
+                x["status"] = "done" if done >= x["target"] else ("in progress" if done else x["status"])
+    return g
+
+def needs_you(sets: list[dict], fnd: list[dict]) -> list[str]:
+    out = []
+    if sets and sets[0]["days_ago"] >= 7: out.append(f"No Ableton session for {sets[0]['days_ago']} days. Open the newest set and finish an 8 bar loop.")
+    elif not sets: out.append("No Ableton sets found. Check ableton_dirs in ~/.crate/config.toml.")
+    if len(fnd) >= 10: out.append(f"{len(fnd)} finds are waiting. Press Want or Skip on a few, it teaches the next dig.")
+    return out
 
 def library(con, cfg) -> list[dict]:
     root = str(cfg.library_root.resolve()) + "/"
@@ -68,13 +82,13 @@ def build(cfg, con) -> dict:
     sets = ableton.latest_per_project(cfg.ableton_dirs or [])
     fnd = finds(con)
     month_ago = time.time() - 30 * 86400
-    g = goals(cfg)
+    g = goals(cfg, sets)
     touched = sum(1 for s in sets if s["mtime"] >= month_ago)
     return dict(schema=1, lane="merman", generated=time.strftime("%Y-%m-%dT%H:%M:%S%z"), date=time.strftime("%Y-%m-%d"),
                 headline=dict(sets_touched_30d=touched, finds_waiting=len(fnd), lossy_files=sum(l["lossy"] for l in library(con, cfg)),
                               latest_project=sets[0]["project"] if sets else None, latest_bpm=sets[0]["bpm"] if sets else None,
                               days_since_last_session=sets[0]["days_ago"] if sets else None),
-                today=dict(listen=_mix(fnd), talk=prompts(sets, fnd), check_out=[dict(label=l, finds=n) for l, n in Counter(f["label"] for f in fnd if f["label"]).most_common(4)],
+                today=dict(needs_you=needs_you(sets, fnd), listen=_mix(fnd), talk=prompts(sets, fnd), check_out=[dict(label=l, finds=n) for l, n in Counter(f["label"] for f in fnd if f["label"]).most_common(4)],
                            working_on=sets[:3]),
                 studio=sets, discovery=fnd, library=library(con, cfg), goals=g, lanes=_lanes.collect(cfg))
 

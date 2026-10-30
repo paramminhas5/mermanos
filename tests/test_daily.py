@@ -58,3 +58,12 @@ def test_publish_strips_paths_and_writes_online_copy(cfg, con, tmp_path):
     assert "path" not in json.loads((repo / "mermanos" / "state.json").read_text())["studio"][0]
     assert "class=act" not in (repo / "mermanos" / "index.html").read_text() and str(tmp_path) not in (repo / "mermanos" / "index.html").read_text()
     assert daily.publish(cfg, st, repo, push=False) == "online copy already up to date"
+
+
+def test_tracks_finished_counts_itself_and_needs_you_flags_a_quiet_studio(cfg):
+    from crate import daily
+    sets = [dict(project="A", days_ago=2, bounces=1), dict(project="B", days_ago=3, bounces=0), dict(project="C", days_ago=40, bounces=2)]
+    g = next(x for x in daily.goals(cfg, sets) if x["measure"] == "tracks finished")
+    assert g["done"] == 1 and g["auto"] and g["status"] == "in progress"
+    assert any("No Ableton session for 9 days" in n for n in daily.needs_you([dict(days_ago=9)], []))
+    assert daily.needs_you([dict(days_ago=1)], []) == []

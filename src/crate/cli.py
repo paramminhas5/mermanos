@@ -157,8 +157,21 @@ def cmd_daily(a):
             from .discover import discover
             mb, lb, lf, dg = _clients(cfg, con); discover(con, cfg, mb, lb, lf, dg); stamp.touch()
         except Exception as e: print("discovery skipped:", e)
+    try: cmd_backup()
+    except Exception as e: print("backup skipped:", e)
     st = daily.build(cfg, con); out = daily.write(cfg, st); print("wrote", out, "and", cfg.home / "state.json")
     if cfg.publish_dir and not a.no_publish: print("online:", daily.publish(cfg, st, cfg.publish_dir))
+
+def cmd_backup(a=None):
+    """Nightly safety copy of your crate data (database, seeds, goals, taste). Secrets in lanes.env are left out. Keeps the last 14."""
+    import tarfile
+    cfg, con = _ctx(); con.close()
+    out = Path("~/Music/crate-backups").expanduser(); out.mkdir(parents=True, exist_ok=True)
+    f = out / f"crate-{time.strftime('%Y-%m-%d')}.tar.gz"
+    with tarfile.open(f, "w:gz") as t:
+        t.add(cfg.home, arcname="crate", filter=lambda i: None if i.name.endswith("lanes.env") or "/history" in i.name or i.name.endswith(".log") else i)
+    for old in sorted(out.glob("crate-*.tar.gz"))[:-14]: old.unlink()
+    print("backup:", f)
 
 def cmd_serve(a):
     """Local dashboard with working Want/Skip buttons. Rebuilds the page from disk on each load; never calls the network."""
@@ -243,6 +256,7 @@ def main(argv=None):
     s = add("studio", cmd_studio); s.add_argument("what", choices=["analyze", "teardown", "compare", "gaps", "lesson", "note", "notes"]); s.add_argument("args", nargs="*"); s.add_argument("--limit", type=int, default=20); s.add_argument("--refs", nargs="+")
     v = add("voice", cmd_voice); v.add_argument("what", choices=["show", "import"]); v.add_argument("arg", nargs="?")
     po = add("post", cmd_post); po.add_argument("what", choices=["new", "finalize", "approve", "export", "list"]); po.add_argument("arg", nargs="?"); po.add_argument("--force", action="store_true")
+    add("backup", cmd_backup)
     dl = add("daily", cmd_daily); dl.add_argument("--scan", action="store_true", help="rescan the library too"); dl.add_argument("--discover", action="store_true"); dl.add_argument("--skip-discover", action="store_true"); dl.add_argument("--no-publish", action="store_true"); dl.add_argument("--every", type=float, default=7, help="days between discovery refreshes")
     sv = add("serve", cmd_serve); sv.add_argument("--port", type=int, default=8765); sv.add_argument("--no-open", action="store_true"); sv.add_argument("--window", action="store_true", help="open in its own app window (needs pywebview)")
     sc = add("schedule", cmd_schedule); sc.add_argument("--at", default="08:00"); sc.add_argument("--install", action="store_true")
